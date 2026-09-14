@@ -34,6 +34,7 @@ import { dedupeModelCatalogEntries } from "../../agents/model-selection-shared.j
 import {
   createModelVisibilityPolicy,
   RUNTIME_MODEL_VISIBILITY_NORMALIZATION,
+  type ModelVisibilityPolicy,
 } from "../../agents/model-visibility-policy.js";
 import {
   createOpenAIModelRoutesResolver,
@@ -48,6 +49,7 @@ import {
 } from "../../agents/prepared-model-runtime.errors.js";
 import { isPreparedModelCatalogFull } from "../../agents/prepared-model-runtime.full-catalog.js";
 import { preparedModelRuntimeConfigsMatch } from "../../agents/prepared-model-runtime.js";
+import { resolveSessionModelRef } from "../../agents/session-model-ref.js";
 import { resolveAutomaticUtilityModelRef } from "../../agents/utility-model.js";
 import { resolveDefaultAgentWorkspaceDir } from "../../agents/workspace.js";
 import { createThinkingCatalogResolver } from "../../auto-reply/thinking.js";
@@ -124,6 +126,7 @@ function createPublicModelsListProjector(params: {
   includeDetails?: boolean;
   preserveUnknownAvailability?: boolean;
   apiKeyCapabilities?: ApiKeyProviderCapabilities;
+  manualSelectionAllowed?: ModelVisibilityPolicy["allows"];
 }) {
   const catalogResolver = createThinkingCatalogResolver(params.thinkingCatalog);
   // Route rows retain identity across reads; keep display/thinking work outside the hot overlay.
@@ -195,6 +198,14 @@ function createPublicModelsListProjector(params: {
     return Object.assign(
       {},
       preparedEntry,
+      params.manualSelectionAllowed
+        ? {
+            manualSelectionAllowed: params.manualSelectionAllowed({
+              provider: entry.provider,
+              model: entry.id,
+            }),
+          }
+        : {},
       supportsFastMode === undefined ? {} : { supportsFastMode },
       projectedAvailability === undefined ? {} : { available: projectedAvailability },
       projectedAvailability === false && evaluation.unavailableReason
@@ -250,6 +261,7 @@ type BuildModelsListResultParams = {
   requesterProfileId?: string;
   readScope?: ChatMetadataReadParams;
   params: ModelsListParams;
+  includeManualSelection?: boolean;
   preloadedCatalog?: {
     agentId: string;
     config: OpenClawConfig;
@@ -351,6 +363,12 @@ export async function prepareModelsListResult(
   if (!metadataSnapshot || !preparedAuthStore) {
     throw new Error("Gateway model catalog owner omitted prepared metadata or auth state");
   }
+  const retainedModel =
+    params.includeManualSelection && view === "configured" && scope?.sessionEntry
+      ? resolveSessionModelRef(cfg, scope.sessionEntry, agentId, {
+          allowPluginNormalization: false,
+        })
+      : undefined;
   const preparedCatalog = await loadPreparedModelCatalogView({
     kind: "prepared",
     cfg,
@@ -359,6 +377,7 @@ export async function prepareModelsListResult(
     workspaceDir,
     snapshot,
     view,
+    retainedModel,
     metadataSnapshot,
     pluginRegistry: preparedPluginRegistry,
     isCurrent,
@@ -546,6 +565,7 @@ export async function prepareModelsListResult(
       cfg,
       agentId,
       configuredEntriesByKey,
+      ...(params.includeManualSelection ? { manualSelectionAllowed: visibilityPolicy.allows } : {}),
       includeInput: true,
       includeDetails: params.params.includeDetails,
       preserveUnknownAvailability: true,
@@ -572,6 +592,7 @@ export async function prepareModelsListResult(
     workspaceDir,
     view,
     policy: visibilityPolicy,
+    retainedModel,
     routePolicy: openAIModelCatalogRoutePolicy,
     routeVariants,
     prepareEntry: async (entry, variants) => {
@@ -606,6 +627,7 @@ export async function prepareModelsListResult(
     cfg,
     agentId,
     configuredEntriesByKey,
+    ...(params.includeManualSelection ? { manualSelectionAllowed: visibilityPolicy.allows } : {}),
     includeDetails: params.params.includeDetails,
     preserveUnknownAvailability: params.params.includeDetails,
     ...(capableProviders ? { apiKeyCapabilities: capableProviders } : {}),

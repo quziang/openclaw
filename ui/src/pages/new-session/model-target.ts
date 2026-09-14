@@ -75,7 +75,12 @@ export function reconcileDraftModelSelection(params: {
   const selectedTarget = requestedModel
     ? resolveDraftModelTarget(requestedModel, undefined, params.catalog)
     : null;
-  if (requestedModel && (!selectedTarget?.entry || selectedTarget.entry.available === false)) {
+  if (
+    requestedModel &&
+    (!selectedTarget?.entry ||
+      selectedTarget.entry.available === false ||
+      selectedTarget.entry.manualSelectionAllowed === false)
+  ) {
     return { model: "", thinkingLevel: "", repaired: true };
   }
   const selected = selectedTarget?.entry

@@ -63,6 +63,8 @@ export const ModelChoiceSchema = closedObject({
   alias: Type.Optional(NonEmptyString),
   tags: Type.Optional(Type.Array(NonEmptyString)),
   available: Type.Optional(Type.Boolean()),
+  /** Scoped manual-choice permission; separate from runtime readiness and automatic selection. */
+  manualSelectionAllowed: Type.Optional(Type.Boolean()),
   unavailableReason: Type.Optional(
     Type.Union([
       Type.Literal("missing-auth"),

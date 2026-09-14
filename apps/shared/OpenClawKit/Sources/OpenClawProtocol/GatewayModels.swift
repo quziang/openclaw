@@ -8441,6 +8441,7 @@ public struct ModelChoice: Codable, Sendable {
     public let alias: String?
     public let tags: [String]?
     public let available: Bool?
+    public let manualselectionallowed: Bool?
     public let unavailablereason: AnyCodable?
     public let unavailableuntil: Int?
     public let contextwindow: Int?
@@ -8465,6 +8466,7 @@ public struct ModelChoice: Codable, Sendable {
         alias: String? = nil,
         tags: [String]? = nil,
         available: Bool? = nil,
+        manualselectionallowed: Bool? = nil,
         unavailablereason: AnyCodable? = nil,
         unavailableuntil: Int? = nil,
         contextwindow: Int? = nil,
@@ -8488,6 +8490,7 @@ public struct ModelChoice: Codable, Sendable {
         self.alias = alias
         self.tags = tags
         self.available = available
+        self.manualselectionallowed = manualselectionallowed
         self.unavailablereason = unavailablereason
         self.unavailableuntil = unavailableuntil
         self.contextwindow = contextwindow
@@ -8513,6 +8516,7 @@ public struct ModelChoice: Codable, Sendable {
         case alias
         case tags
         case available
+        case manualselectionallowed = "manualSelectionAllowed"
         case unavailablereason = "unavailableReason"
         case unavailableuntil = "unavailableUntil"
         case contextwindow = "contextWindow"
