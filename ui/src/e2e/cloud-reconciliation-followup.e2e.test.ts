@@ -58,7 +58,8 @@ function session(
     placement: placement(state, workspaceResultReconciling),
     sessionId: "cloud-reconciliation-session",
     status: queuedFollowUp ? "running" : "done",
-    updatedAt: now,
+    // Run events advance the mock row; later snapshots must not predate them.
+    updatedAt: Date.now(),
   };
 }
 
