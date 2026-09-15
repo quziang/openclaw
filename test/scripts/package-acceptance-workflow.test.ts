@@ -8042,6 +8042,7 @@ test "$package_manager" = "pnpm@12.1.0"
     });
     expectTextToIncludeAll(buildPrivateQa.run, [
       "pnpm build qaRuntime",
+      "test -f dist/plugin-sdk/qa-channel-protocol.js",
       "test -f dist/plugin-sdk/qa-runtime.js",
       "test -f dist/extensions/qa-lab/runtime-api.js",
     ]);
@@ -8448,6 +8449,23 @@ test "$package_manager" = "pnpm@12.1.0"
     expect(
       calls.filter(({ args }) => args.some((value) => value.endsWith("/runs/101"))),
     ).toHaveLength(60);
+  });
+
+  it("reports a child startup failure immediately without reposting", () => {
+    const child = fullReleaseChild("artifact-candidate");
+    const { calls, result } = runFullReleaseChildDispatch(child, {
+      MOCK_GH_CONCLUSION: "startup_failure",
+      MOCK_GH_DISPATCH_OUTPUT: "https://github.com/openclaw/openclaw/actions/runs/101",
+      MOCK_GH_RUN_TITLES: JSON.stringify([child.runName]),
+      MOCK_GH_STATUSES: '["completed"]',
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("before any jobs started (startup_failure)");
+    expect(calls.filter(({ args }) => args[0] === "workflow")).toHaveLength(1);
+    expect(
+      calls.filter(({ args }) => args.some((value) => value.endsWith("/runs/101"))),
+    ).toHaveLength(1);
   });
 
   it("refuses an immutable child mismatch immediately without reposting", () => {
@@ -13862,7 +13880,28 @@ printf '%s\\n' "$DEEPSEEK_API_KEY" "$DEEPINFRA_API_KEY"`,
     expect(appendProofIndex).toBeGreaterThan(verifyReleaseIndex);
     expect(finalizeJob.needs).toEqual(["publish", "publish_docker", "approve_github_release"]);
     expect(finalizeJob.if).toContain("needs.publish_docker.result == 'success'");
-    expect(finalizeRelease.run).toContain('gh release edit "${RELEASE_TAG}"');
+    expect(finalizeJob.if).toContain("inputs.prepared_plugins == ''");
+    expect(finalizeJob.if).toContain("needs.approve_github_release.result == 'success'");
+    expect(finalizeRelease.env).toMatchObject({
+      RELEASE_TAG: "${{ inputs.tag }}",
+      SOURCE_SHA: "${{ needs.publish.outputs.source_sha }}",
+      RELEASE_NPM_DIST_TAG: "${{ inputs.npm_dist_tag }}",
+    });
+    expect(finalizeRelease.run).toContain("node scripts/linux-app-channel.mjs finalize-core");
+    expect(finalizeRelease.run).toContain(
+      '--tag "$RELEASE_TAG" --source-sha "$SOURCE_SHA" --latest "$expected_latest"',
+    );
+    expect(finalizeRelease.run).toContain('--tooling-sha "$GITHUB_WORKFLOW_SHA"');
+    expect(finalizeRelease.run).toContain(
+      '--workflow-ref "$GITHUB_REF_NAME" --workflow-full-ref "$GITHUB_REF"',
+    );
+    expect(finalizeRelease.run).toContain(
+      '--release-publish-run-id "$GITHUB_RUN_ID" --release-publish-run-attempt "$GITHUB_RUN_ATTEMPT"',
+    );
+    expect(finalizeRelease.run).toContain(
+      '--release-publish-ref "$GITHUB_REF_NAME" --release-publish-full-ref "$GITHUB_REF"',
+    );
+    expect(finalizeRelease.run).not.toContain("gh release edit");
   });
 
   it("loads the strict release validator from the isolated trusted tooling bundle", () => {
